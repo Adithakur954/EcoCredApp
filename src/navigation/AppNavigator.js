@@ -15,6 +15,7 @@ import DevicesScreen from '../screens/DevicesScreen';
 import GamificationScreen from '../screens/GamificationScreen';
 import TipsScreen from '../screens/TipsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import DatasetAnalysisScreen from '../screens/DatasetAnalysisScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -45,6 +46,7 @@ function MainTabs() {
             Devices: focused ? 'hardware-chip' : 'hardware-chip-outline',
             Gamification: focused ? 'trophy' : 'trophy-outline',
             Tips: focused ? 'leaf' : 'leaf-outline',
+            Analysis: focused ? 'analytics' : 'analytics-outline',
             Profile: focused ? 'person' : 'person-outline',
           };
           return <Ionicons name={icons[route.name]} size={size} color={color} />;
@@ -56,6 +58,7 @@ function MainTabs() {
       <Tab.Screen name="Devices" component={DevicesScreen} />
       <Tab.Screen name="Gamification" component={GamificationScreen} />
       <Tab.Screen name="Tips" component={TipsScreen} />
+      <Tab.Screen name="Analysis" component={DatasetAnalysisScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

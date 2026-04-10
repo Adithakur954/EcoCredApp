@@ -82,4 +82,13 @@ export const tipsAPI = {
   },
 };
 
+// ─── DATASET ANALYSIS ─────────────────────────────────────────────────────────
+// All dataset endpoints are on the same backend (API_BASE_URL above)
+export const datasetAPI = {
+  getSummary: () => api.get('/api/dataset/summary'),
+  getTimeSeries: (range = '7d') => api.get(`/api/dataset/timeseries?range=${range}`),
+  getApplianceBreakdown: () => api.get('/api/dataset/appliances'),
+  getWeatherCorrelation: () => api.get('/api/dataset/weather'),
+};
+
 export default api;
