@@ -57,6 +57,13 @@ const CHART_CONFIG = {
   decimalPlaces: 2,
 };
 
+const toNumber = (value, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DatasetAnalysisScreen() {
   const [range, setRange] = useState('7d');
@@ -68,7 +75,7 @@ export default function DatasetAnalysisScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
-  const load = useCallback(async (selectedRange = range) => {
+  const load = useCallback(async (selectedRange) => {
     try {
       const [sumRes, tsRes, appRes, wxRes] = await Promise.all([
         datasetAPI.getSummary(),
@@ -91,38 +98,64 @@ export default function DatasetAnalysisScreen() {
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setLoading(true);
+    load(range);
+  }, [range, load]);
 
   const onRangeChange = (r) => {
-    setRange(r);
-    setLoading(true);
-    load(r);
+    if (r !== range) {
+      setRange(r);
+    }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
+    await load(range);
     setRefreshing(false);
   };
 
+  const avgUse = toNumber(summary?.avgUse);
+  const avgGen = toNumber(summary?.avgGen);
+  const avgSolar = toNumber(summary?.avgSolar);
+  const netBalance = toNumber(summary?.netBalance);
+  const avgTemp = toNumber(weather?.avgTemp);
+  const avgHumidity = toNumber(weather?.avgHumidity);
+  const avgWindSpeed = toNumber(weather?.avgWindSpeed);
+  const avgCloudCover = toNumber(weather?.avgCloudCover);
+  const avgDewPoint = toNumber(weather?.avgDewPoint);
+  const avgPressure = toNumber(weather?.avgPressure);
+
   // Build chart data from timeSeries
-  const lineData = timeSeries ? {
-    labels: timeSeries.labels ?? [],
+  const lineLabels = Array.isArray(timeSeries?.labels) ? timeSeries.labels : [];
+  const useSeries = (timeSeries?.use ?? []).map((v) => toNumber(v));
+  const genSeries = (timeSeries?.gen ?? []).map((v) => toNumber(v));
+  const solarSeries = (timeSeries?.solar ?? []).map((v) => toNumber(v));
+  const hasLineValues = [...useSeries, ...genSeries, ...solarSeries].some((v) => v !== 0);
+  const canRenderLineChart =
+    lineLabels.length > 0 &&
+    useSeries.length === lineLabels.length &&
+    genSeries.length === lineLabels.length &&
+    solarSeries.length === lineLabels.length &&
+    hasLineValues;
+
+  const lineData = canRenderLineChart ? {
+    labels: lineLabels,
     datasets: [
       {
-        data: timeSeries.use ?? [],
+        data: useSeries,
         color: (o = 1) => `rgba(0, 201, 167, ${o})`,
         strokeWidth: 2,
       },
       {
-        data: timeSeries.gen ?? [],
+        data: genSeries,
         color: (o = 1) => `rgba(74, 158, 255, ${o})`,
         strokeWidth: 2,
       },
       {
-        data: timeSeries.solar ?? [],
+        data: solarSeries,
         color: (o = 1) => `rgba(255, 215, 0, ${o})`,
         strokeWidth: 2,
       },
@@ -131,10 +164,13 @@ export default function DatasetAnalysisScreen() {
   } : null;
 
   // Top 8 appliances for bar chart
-  const topAppliances = (appliances ?? []).slice(0, 8);
+  const topAppliances = (appliances ?? [])
+    .map((a) => ({ ...a, avgKw: toNumber(a.avgKw) }))
+    .slice(0, 8);
+  const hasBarValues = topAppliances.some((a) => a.avgKw !== 0);
   const barData = topAppliances.length > 0 ? {
-    labels: topAppliances.map(a => a.name.split(' ')[0]),
-    datasets: [{ data: topAppliances.map(a => +(a.avgKw ?? 0).toFixed(3)) }],
+    labels: topAppliances.map((a) => String(a.name ?? 'Unknown').split(' ')[0]),
+    datasets: [{ data: topAppliances.map(a => +toNumber(a.avgKw).toFixed(3)) }],
   } : null;
 
   if (loading && !summary) {
@@ -194,16 +230,16 @@ export default function DatasetAnalysisScreen() {
           {/* ── Overview Cards ── */}
           <SectionTitle title="Overview" />
           <View style={styles.cardGrid}>
-            <MetricCard icon="⚡" label="Avg Usage" value={`${(summary?.avgUse ?? 0).toFixed(2)} kW`} color={COLORS.teal} />
-            <MetricCard icon="🔋" label="Avg Gen" value={`${(summary?.avgGen ?? 0).toFixed(2)} kW`} color={COLORS.blue} />
+            <MetricCard icon="⚡" label="Avg Usage" value={`${avgUse.toFixed(2)} kW`} color={COLORS.teal} />
+            <MetricCard icon="🔋" label="Avg Gen" value={`${avgGen.toFixed(2)} kW`} color={COLORS.blue} />
           </View>
           <View style={styles.cardGrid}>
-            <MetricCard icon="☀️" label="Avg Solar" value={`${(summary?.avgSolar ?? 0).toFixed(2)} kW`} color={COLORS.gold} />
+            <MetricCard icon="☀️" label="Avg Solar" value={`${avgSolar.toFixed(2)} kW`} color={COLORS.gold} />
             <MetricCard
-              icon={summary?.netBalance < 0 ? '📉' : '📈'}
+              icon={netBalance < 0 ? '📉' : '📈'}
               label="Net Balance"
-              value={`${(summary?.netBalance ?? 0).toFixed(2)} kW`}
-              color={summary?.netBalance < 0 ? COLORS.red : COLORS.green}
+              value={`${netBalance.toFixed(2)} kW`}
+              color={netBalance < 0 ? COLORS.red : COLORS.green}
             />
           </View>
 
@@ -229,14 +265,14 @@ export default function DatasetAnalysisScreen() {
                 fromZero
               />
             ) : (
-              <ActivityIndicator color={COLORS.teal} style={{ marginVertical: 40 }} />
+              <Text style={styles.noChartText}>Not enough valid trend data to draw chart.</Text>
             )}
           </Card>
 
           {/* ── Appliance Breakdown ── */}
           <SectionTitle title="Appliance Breakdown (Avg kW)" />
           <Card style={styles.chartCard}>
-            {barData ? (
+            {barData && hasBarValues ? (
               <BarChart
                 data={barData}
                 width={CHART_WIDTH - 32}
@@ -251,7 +287,7 @@ export default function DatasetAnalysisScreen() {
                 withInnerLines={false}
               />
             ) : (
-              <ActivityIndicator color={COLORS.teal} style={{ marginVertical: 40 }} />
+              <Text style={styles.noChartText}>Not enough valid appliance data to draw chart.</Text>
             )}
             {/* Full list */}
             <View style={styles.applianceList}>
@@ -259,8 +295,8 @@ export default function DatasetAnalysisScreen() {
                 <ApplianceRow
                   key={i}
                   name={a.name}
-                  value={a.avgKw ?? 0}
-                  max={(appliances[0]?.avgKw ?? 1)}
+                  value={toNumber(a.avgKw)}
+                  max={toNumber(appliances[0]?.avgKw, 1)}
                 />
               ))}
             </View>
@@ -270,12 +306,12 @@ export default function DatasetAnalysisScreen() {
           <SectionTitle title="Weather Conditions" />
           <Card>
             <View style={styles.weatherGrid}>
-              <WeatherStat icon="🌡️" label="Temp" value={`${(weather?.avgTemp ?? 0).toFixed(1)}°C`} />
-              <WeatherStat icon="💧" label="Humidity" value={`${Math.round((weather?.avgHumidity ?? 0) * 100)}%`} />
-              <WeatherStat icon="💨" label="Wind" value={`${(weather?.avgWindSpeed ?? 0).toFixed(1)} m/s`} />
-              <WeatherStat icon="☁️" label="Cloud" value={`${Math.round((weather?.avgCloudCover ?? 0) * 100)}%`} />
-              <WeatherStat icon="🌫️" label="Dew Pt" value={`${(weather?.avgDewPoint ?? 0).toFixed(1)}°C`} />
-              <WeatherStat icon="🔵" label="Pressure" value={`${(weather?.avgPressure ?? 0).toFixed(0)} hPa`} />
+              <WeatherStat icon="🌡️" label="Temp" value={`${avgTemp.toFixed(1)}°C`} />
+              <WeatherStat icon="💧" label="Humidity" value={`${Math.round(avgHumidity * 100)}%`} />
+              <WeatherStat icon="💨" label="Wind" value={`${avgWindSpeed.toFixed(1)} m/s`} />
+              <WeatherStat icon="☁️" label="Cloud" value={`${Math.round(avgCloudCover * 100)}%`} />
+              <WeatherStat icon="🌫️" label="Dew Pt" value={`${avgDewPoint.toFixed(1)}°C`} />
+              <WeatherStat icon="🔵" label="Pressure" value={`${avgPressure.toFixed(0)} hPa`} />
             </View>
           </Card>
 
@@ -308,14 +344,17 @@ function LegendDot({ color, label }) {
 }
 
 function ApplianceRow({ name, value, max }) {
-  const pct = max > 0 ? (value / max) : 0;
+  const safeValue = toNumber(value);
+  const safeMax = toNumber(max, 1);
+  const pct = safeMax > 0 ? (safeValue / safeMax) : 0;
+  const widthPct = clamp(Number.isFinite(pct) ? pct * 100 : 0, 2, 100);
   return (
     <View style={styles.appRow}>
       <Text style={styles.appName}>{name}</Text>
       <View style={styles.appBarBg}>
-        <View style={[styles.appBarFill, { width: `${Math.max(2, pct * 100)}%` }]} />
+        <View style={[styles.appBarFill, { width: `${widthPct}%` }]} />
       </View>
-      <Text style={styles.appVal}>{value.toFixed(3)}</Text>
+      <Text style={styles.appVal}>{safeValue.toFixed(3)}</Text>
     </View>
   );
 }
@@ -367,6 +406,7 @@ const styles = StyleSheet.create({
 
   // Chart
   chartCard: { paddingHorizontal: 16, paddingVertical: 14 },
+  noChartText: { color: COLORS.textMuted, textAlign: 'center', marginVertical: 40, fontSize: 13 },
   legendRow: { flexDirection: 'row', gap: 14, marginBottom: 4 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 9, height: 9, borderRadius: 5 },

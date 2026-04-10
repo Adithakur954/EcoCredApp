@@ -1,9 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Change this to your backend IP. 
-// Using 192.168.1.35 as found in your terminal logs.
-export const API_BASE_URL = 'http://192.168.1.35:3000';
+const DEPLOYED_API_BASE_URL = 'https://ecocred-pebe.onrender.com';
+const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+
+// Prefer env override; otherwise use deployed backend.
+export const API_BASE_URL = envBaseUrl || DEPLOYED_API_BASE_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,6 +19,19 @@ api.interceptors.request.use(async (config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.response) {
+      const method = error?.config?.method?.toUpperCase() || 'GET';
+      const baseURL = error?.config?.baseURL || API_BASE_URL;
+      const url = error?.config?.url || '';
+      console.log(`Network Error: ${method} ${baseURL}${url}`);
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const authAPI = {

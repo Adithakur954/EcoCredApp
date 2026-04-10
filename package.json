@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "react-native start",
+    "android": "react-native run-android",
+    "android:release": "cd android && ./gradlew assembleRelease",
+    "ios": "react-native run-ios",
+    "web": "expo start --web",
+    "expo:start": "expo start"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -32,6 +34,7 @@
   },
   "private": true,
   "devDependencies": {
+    "@react-native-community/cli": "^20.1.3",
     "babel-preset-expo": "^55.0.16"
   }
 }
